@@ -12,16 +12,32 @@ A desktop app for Windows and Linux. It takes a **simple document** (notes, a dr
 
 ## Install a release
 
-When a build is available under **Releases** on GitHub, download the archive for your platform and extract the entire folder.
+Download the archive and matching `.sha256` file for your platform from [GitHub Releases](https://github.com/ido83/TechDocForge/releases). Verify the archive before extracting the entire folder.
 
 | Platform | Archive | Launch |
 | --- | --- | --- |
 | Windows x64 | `TechDocForge-v<version>-windows-x64.zip` | `TechDocForge/TechDocForge.exe` |
 | Linux x64 | `TechDocForge-v<version>-linux-x64.tar.gz` | `./TechDocForge/TechDocForge` |
 
-Each archive has a matching `.sha256` file. On Linux, install `libxcb-cursor0` if Qt reports that the XCB platform plugin cannot load.
+Replace `<version>` with the version in the downloaded filename. Run the command from the download directory.
 
-The Linux x64 release targets Ubuntu 22.04 with glibc 2.35. Run `ldd --version` to check the glibc version on your machine.
+**Windows (PowerShell)**
+
+```powershell
+$archive = 'TechDocForge-v<version>-windows-x64.zip'
+$expected = ((Get-Content -LiteralPath "$archive.sha256" -Raw -ErrorAction Stop).Trim() -split '\s+', 2)[0]
+if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $expected) {
+    throw 'Archive SHA-256 mismatch'
+}
+```
+
+**Linux**
+
+```bash
+sha256sum --check 'TechDocForge-v<version>-linux-x64.tar.gz.sha256'
+```
+
+The Linux x64 build targets Ubuntu 22.04 with glibc 2.35. Run `ldd --version` to check your system. On Ubuntu, install `libxcb-cursor0` if Qt reports that the XCB platform plugin cannot load.
 
 ## Quick start (from source)
 
@@ -59,7 +75,15 @@ The [CI workflow](.github/workflows/ci.yml) runs on pushes to `master` and pull 
 
 GitHub recognizes `[skip ci]` in commit messages. Use it for commits that should avoid retriggering automation. A skipped PR can leave required checks pending.
 
-To publish a release, push a tag matching the committed `VERSION` file (for example, `v1.1.2`). The [release workflow](.github/workflows/release.yml) calls the same CI checks and waits for both builds to pass. It verifies both archive checksums and attaches the archives and checksum files to GitHub Releases.
+To publish a release, commit the new version and the release workflow to `master`. From the release commit, create and push a new annotated tag matching `VERSION` with a `v` prefix. Use a new patch version for fixes after a tag has been published.
+
+```bash
+version="$(git show HEAD:VERSION | tr -d '\r\n')"
+git tag -a "v$version" -m "TechDocForge $version"
+git push origin "refs/tags/v$version"
+```
+
+The [release workflow](.github/workflows/release.yml) waits for the CI checks and both platform builds. It verifies and publishes the Windows ZIP, Linux tarball, and both checksum files.
 
 ## Mermaid diagrams
 
