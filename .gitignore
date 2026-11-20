@@ -1,0 +1,39 @@
+# Python environments and tooling
+__pycache__/
+*.py[cod]
+.venv*/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Build output and generated PyInstaller specs
+build/
+dist/
+*.exe
+*.bin
+/TechDocForge
+!/techdocforge/
+*.spec
+!/TechDocForge.spec
+
+# Local credentials and environment overrides
+.env
+.env.*
+!.env.example
+.aws/
+*.key
+*.p12
+*.pfx
+*-key.pem
+*_key.pem
+
+# Local agent settings and editor artifacts
+.claude/settings.local.json
+CLAUDE.local.md
+AGENTS.local.md
+~$*.docx
+.DS_Store
+Thumbs.db
