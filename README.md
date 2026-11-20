@@ -21,6 +21,8 @@ When a build is available under **Releases** on GitHub, download the archive for
 
 Each archive has a matching `.sha256` file. On Linux, install `libxcb-cursor0` if Qt reports that the XCB platform plugin cannot load.
 
+The Linux x64 release targets Ubuntu 22.04 with glibc 2.35. Run `ldd --version` to check the glibc version on your machine.
+
 ## Quick start (from source)
 
 ```bash
@@ -53,9 +55,11 @@ Linux runtime notes: you need a Secret Service keychain (GNOME Keyring or KWalle
 
 ## CI and releases
 
-The [CI workflow](.github/workflows/ci.yml) runs on pull requests, default-branch pushes, and release tags. It runs Ruff, actionlint, pip-audit, Bandit, Gitleaks, and headless Qt tests. Windows and Ubuntu runners build the x64 archives, which are available from the workflow run after the build jobs succeed.
+The [CI workflow](.github/workflows/ci.yml) runs on pushes to `master` and pull requests targeting `master`. It runs Ruff, actionlint, pip-audit, Bandit, Gitleaks, and headless Qt tests. Windows and Ubuntu runners build the x64 archives, which are available from the workflow run after the build jobs succeed.
 
-To publish a release, push a tag matching the committed `VERSION` file (for example, `v1.1.2`). The publish job requires all checks and both builds to pass. It verifies both archive checksums and attaches the archives and checksum files to GitHub Releases.
+GitHub recognizes `[skip ci]` in commit messages. Use it for commits that should avoid retriggering automation. A skipped PR can leave required checks pending.
+
+To publish a release, push a tag matching the committed `VERSION` file (for example, `v1.1.2`). The [release workflow](.github/workflows/release.yml) calls the same CI checks and waits for both builds to pass. It verifies both archive checksums and attaches the archives and checksum files to GitHub Releases.
 
 ## Mermaid diagrams
 

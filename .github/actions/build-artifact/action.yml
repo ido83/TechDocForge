@@ -30,12 +30,12 @@ runs:
           python -m pip install --require-hashes -r requirements.lock
         fi
         python -m pip check
-    - name: Install Qt runtime libraries
+    - name: Install Linux build dependencies
       if: runner.os == 'Linux'
       shell: bash
       run: |
         sudo apt-get update
-        sudo apt-get install --yes libdbus-1-3 libegl1 libgl1 libxkbcommon0 libxcb-cursor0
+        sudo apt-get install --yes binutils libdbus-1-3 libegl1 libgl1 libxkbcommon0 libxcb-cursor0
     - name: Package Windows app
       if: runner.os == 'Windows'
       shell: pwsh
@@ -52,6 +52,10 @@ runs:
       if: runner.os == 'Linux'
       shell: bash
       run: |
+        if [[ "$(getconf GNU_LIBC_VERSION)" != "glibc 2.35" ]]; then
+          echo "Expected a glibc 2.35 build runner." >&2
+          exit 1
+        fi
         python -m PyInstaller --noconfirm --clean --windowed \
           --name TechDocForge --specpath "$RUNNER_TEMP" \
           --collect-submodules keyring.backends \
@@ -59,6 +63,37 @@ runs:
           --add-data "$GITHUB_WORKSPACE/VERSION:." \
           "$GITHUB_WORKSPACE/run.py"
         test -x dist/TechDocForge/TechDocForge
+        python - <<'PY'
+        import re
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        limit = (2, 35, 0)
+        highest = (0, 0, 0)
+        incompatible = False
+        for binary in Path("dist/TechDocForge").rglob("*"):
+            if not binary.is_file():
+                continue
+            with binary.open("rb") as stream:
+                if stream.read(4) != b"\x7fELF":
+                    continue
+            info = subprocess.check_output(
+                ["readelf", "--wide", "--version-info", str(binary)], text=True,
+            )
+            # Read imported version requirements, not symbols defined by the file.
+            _, _, needs = info.partition("Version needs section")
+            for value in re.findall(r"Name: GLIBC_(\d+\.\d+(?:\.\d+)?)\b", needs):
+                version = tuple(map(int, value.split(".")))
+                version += (0,) * (3 - len(version))
+                highest = max(highest, version)
+                if version > limit:
+                    print(f"{binary} requires glibc {value}", file=sys.stderr)
+                    incompatible = True
+        if incompatible or highest == (0, 0, 0):
+            sys.exit("Could not verify the glibc 2.35 compatibility target.")
+        print(f"Highest bundled glibc requirement: {'.'.join(map(str, highest))}")
+        PY
         version="$(tr -d '\r\n' < VERSION)"
         mkdir -p dist/release-assets
         tar -czf "dist/release-assets/TechDocForge-v$version-linux-x64.tar.gz" -C dist TechDocForge
