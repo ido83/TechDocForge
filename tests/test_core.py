@@ -96,6 +96,33 @@ def test_python_mermaid_flowchart(tmp_path):
         assert image.height >= 500
 
 
+def test_mermaid_cli_runs_with_fixed_paths(tmp_path, monkeypatch):
+    from pathlib import Path
+    from types import SimpleNamespace
+    import techdocforge.mermaid as mermaid
+
+    tools = tmp_path / "tools"
+    launcher = tools / "mmdc.exe"
+    monkeypatch.setattr(mermaid, "sys", SimpleNamespace(platform="win32"))
+    monkeypatch.setattr(mermaid.os, "get_exec_path", lambda: [".", str(tools)])
+    monkeypatch.setattr(mermaid.shutil, "which", lambda _: str(launcher.with_suffix(".cmd")))
+    assert mermaid.find_mermaid_cli() is None
+    monkeypatch.setattr(mermaid.shutil, "which", lambda path: path)
+    monkeypatch.setattr(mermaid, "_render_mermaid_python", lambda *_: None)
+
+    def run(args, *, cwd, shell, **kwargs):
+        assert args == [str(launcher), "-i", "diagram.mmd", "-o", "diagram.png", "-b", "transparent"]
+        assert shell is False
+        assert (Path(cwd) / "diagram.mmd").read_text(encoding="utf-8") == "pie\n"
+        (Path(cwd) / "diagram.png").write_bytes(b"stub image")
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(mermaid.subprocess, "run", run)
+    output = tmp_path / "export & preview" / "output.png"
+    assert mermaid.render_mermaid("pie", output) == output
+    assert output.read_bytes() == b"stub image"
+
+
 def test_preview_keeps_body_text_visible():
     import os
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")

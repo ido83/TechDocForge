@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import shutil
-import subprocess
+# The optional renderer is invoked directly with fixed arguments.
+import subprocess  # nosec B404
 import tempfile
 import textwrap
 from pathlib import Path
@@ -21,11 +23,14 @@ _DIAGRAM_DECLARATION = re.compile(r"(?:flowchart|graph)(?:\s+(?:TB|TD|BT|LR|RL))
 
 def find_mermaid_cli() -> list[str] | None:
     """Return a command prefix for Mermaid CLI, or None if it is unavailable."""
-    mmdc = shutil.which("mmdc")
-    if mmdc:
-        return [mmdc]
-    if shutil.which("mmdc.cmd"):
-        return [shutil.which("mmdc.cmd")]
+    # Windows can route batch launchers through a shell even with shell=False.
+    executable = "mmdc.exe" if sys.platform == "win32" else "mmdc"
+    for directory in map(Path, os.get_exec_path()):
+        if not directory.is_absolute():
+            continue
+        mmdc = shutil.which(str(directory / executable))
+        if mmdc and Path(mmdc).name.lower() == executable:
+            return [mmdc]
     return None
 
 
@@ -331,28 +336,33 @@ def render_mermaid(code: str, output: str | Path) -> Path | None:
     command = find_mermaid_cli()
     if not command:
         return None
-    out.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="techdocforge-mermaid-") as td:
-        source = Path(td) / "diagram.mmd"
+        directory = Path(td)
+        source = directory / "diagram.mmd"
+        image = directory / "diagram.png"
         source.write_text(code.strip() + "\n", encoding="utf-8")
         try:
             kwargs = {}
             if sys.platform == "win32":
                 kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            result = subprocess.run(
-                command + ["-i", str(source), "-o", str(out), "-b", "transparent"],
+            # The model supplies only file contents. Filenames and flags are fixed.
+            result = subprocess.run(  # nosec B603
+                command + ["-i", source.name, "-o", image.name, "-b", "transparent"],
+                cwd=directory,
+                shell=False,
                 stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 timeout=120,
                 check=False,
                 **kwargs,
             )
+            if result.returncode != 0 or not image.is_file() or image.stat().st_size == 0:
+                return None
+            shutil.copyfile(image, out)
         except (OSError, subprocess.TimeoutExpired):
             return None
-        if result.returncode != 0:
-            return None
-    return out if out.is_file() and out.stat().st_size > 0 else None
+    return out
 
 
 def split_mermaid_diagrams(markdown: str) -> tuple[str, list[str]]:

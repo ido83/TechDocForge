@@ -61,7 +61,7 @@ To publish a release, push a tag matching the committed `VERSION` file (for exam
 
 The model may create fenced `mermaid` blocks for architecture, flow and sequence diagrams. Flowcharts and sequence diagrams are rendered locally in Python with Pillow as PNG images; no Node.js, `npm`, or command window is used for these diagrams.
 
-Optional local Mermaid CLI support can render additional Mermaid diagram types. TechDocForge detects `mmdc` only and runs it without opening a Windows command window. It never sends diagram source to a third-party rendering service.
+Optional local Mermaid CLI support can render additional diagram types. TechDocForge looks for `mmdc` on Linux and a native `mmdc.exe` on Windows. Windows batch launchers such as `mmdc.cmd` are skipped. The app renders diagrams locally.
 
 Rendered diagrams appear at the end of the document. Markdown exports reference PNGs in a sibling `assets/` directory, while Word exports embed them. If no diagram renders, the rendered preview and exports omit the **Diagrams** heading.
 
