@@ -14,7 +14,7 @@ def _read_version() -> str:
             return version
     except OSError:
         pass
-    return "1.1.2"
+    return "1.1.3"
 
 
 __version__ = _read_version()

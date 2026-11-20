@@ -72,7 +72,7 @@ def test_clean_output_removes_template_markers_and_moves_mermaid():
 
 def test_app_version_file():
     from techdocforge import __version__
-    assert __version__ == "1.1.2"
+    assert __version__ == "1.1.3"
 
 
 def test_prompt_requests_mermaid_diagrams():
