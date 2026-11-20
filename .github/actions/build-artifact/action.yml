@@ -55,7 +55,9 @@ runs:
         python -m PyInstaller --noconfirm --clean --windowed \
           --name TechDocForge --specpath "$RUNNER_TEMP" \
           --collect-submodules keyring.backends \
-          --add-data assets/TechDocForge.png:assets --add-data VERSION:. run.py
+          --add-data "$GITHUB_WORKSPACE/assets/TechDocForge.png:assets" \
+          --add-data "$GITHUB_WORKSPACE/VERSION:." \
+          "$GITHUB_WORKSPACE/run.py"
         test -x dist/TechDocForge/TechDocForge
         version="$(tr -d '\r\n' < VERSION)"
         mkdir -p dist/release-assets
