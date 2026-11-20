@@ -1,0 +1,28 @@
+name: Publish GitHub release
+description: Verify and publish both desktop archives with their checksums.
+runs:
+  using: composite
+  steps:
+    - name: Verify tag and publish release assets
+      shell: bash
+      working-directory: dist/release-assets
+      run: |
+        version="$(tr -d '\r\n' < "$GITHUB_WORKSPACE/VERSION")"
+        if [[ "$GITHUB_REF_TYPE" != tag || ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || "$GITHUB_REF_NAME" != "v$version" ]]; then
+          echo 'Release tag must match VERSION.' >&2
+          exit 1
+        fi
+        windows="TechDocForge-v$version-windows-x64.zip"
+        linux="TechDocForge-v$version-linux-x64.tar.gz"
+        for archive in "$windows" "$linux"; do
+          if [[ ! -s "$archive" || ! -s "$archive.sha256" ]]; then
+            echo "Missing archive or checksum: $archive" >&2
+            exit 1
+          fi
+          if ! sha256sum --binary "$archive" | cmp -s - "$archive.sha256"; then
+            echo "SHA-256 sidecar does not match $archive" >&2
+            exit 1
+          fi
+        done
+        gh release create "$GITHUB_REF_NAME" "$windows" "$windows.sha256" "$linux" "$linux.sha256" \
+          --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes --title "TechDocForge $version"

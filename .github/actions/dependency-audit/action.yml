@@ -1,0 +1,19 @@
+name: Dependency scan (SCA)
+description: Scan runtime and development Python dependencies for advisories.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: '3.13'
+    - name: Audit runtime and development dependencies
+      shell: bash
+      run: |
+        python -m venv "$RUNNER_TEMP/audit-venv"
+        source "$RUNNER_TEMP/audit-venv/bin/activate"
+        python -m pip install -r requirements-dev.txt 'pip-audit==2.10.1'
+        if [[ -f requirements.lock ]]; then
+          python -m pip install --require-hashes -r requirements.lock
+        fi
+        python -m pip check
+        python -m pip_audit --local --progress-spinner off

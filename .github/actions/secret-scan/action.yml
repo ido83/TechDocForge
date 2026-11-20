@@ -1,0 +1,30 @@
+name: Secret scan
+description: Scan introduced Git commits for secrets with full redaction.
+inputs:
+  base-sha:
+    description: Base commit for the scan range.
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Install Gitleaks
+      working-directory: ${{ runner.temp }}
+      shell: bash
+      run: |
+        curl --fail --silent --show-error --location --retry 3 --output gitleaks.tar.gz \
+          https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+        echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz' | sha256sum --check
+        tar -xzf gitleaks.tar.gz gitleaks
+    - name: Scan introduced commits with full redaction
+      env:
+        BASE_SHA: ${{ inputs.base-sha }}
+      shell: bash
+      run: |
+        if [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+          scan_range="$BASE_SHA..HEAD"
+        else
+          echo "Base commit unavailable. Scanning all commits reachable from HEAD."
+          scan_range=HEAD
+        fi
+        "$RUNNER_TEMP/gitleaks" git --redact=100 --no-banner --log-opts="$scan_range" .

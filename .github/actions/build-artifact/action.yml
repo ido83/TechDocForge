@@ -1,0 +1,81 @@
+name: Build desktop artifact
+description: Package TechDocForge on the native GitHub runner.
+outputs:
+  archive:
+    description: Path to the versioned desktop archive.
+    value: ${{ steps.checksum.outputs.archive }}
+  checksum:
+    description: Path to the matching SHA-256 sidecar.
+    value: ${{ steps.checksum.outputs.checksum }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: '3.13'
+    - name: Validate version and install dependencies
+      shell: bash
+      run: |
+        version="$(tr -d '\r\n' < VERSION)"
+        if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "VERSION must contain a patch-level version such as 1.1.2." >&2
+          exit 1
+        fi
+        if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" != "v$version" ]]; then
+          echo "Release tag must match VERSION (v$version)." >&2
+          exit 1
+        fi
+        python -m pip install -r requirements-dev.txt 'pip-audit==2.10.1'
+        if [[ -f requirements.lock ]]; then
+          python -m pip install --require-hashes -r requirements.lock
+        fi
+        python -m pip check
+    - name: Install Qt runtime libraries
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install --yes libdbus-1-3 libegl1 libgl1 libxkbcommon0 libxcb-cursor0
+    - name: Package Windows app
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        python -m PyInstaller --noconfirm --clean TechDocForge.spec
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        if (-not (Test-Path dist/TechDocForge/TechDocForge.exe -PathType Leaf)) {
+          throw 'Missing Windows executable'
+        }
+        $version = (Get-Content VERSION -Raw).Trim()
+        New-Item -ItemType Directory -Path dist/release-assets | Out-Null
+        Compress-Archive -Path dist/TechDocForge -DestinationPath "dist/release-assets/TechDocForge-v$version-windows-x64.zip"
+    - name: Package Linux app
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        python -m PyInstaller --noconfirm --clean --windowed \
+          --name TechDocForge --specpath "$RUNNER_TEMP" \
+          --collect-submodules keyring.backends \
+          --add-data assets/TechDocForge.png:assets --add-data VERSION:. run.py
+        test -x dist/TechDocForge/TechDocForge
+        version="$(tr -d '\r\n' < VERSION)"
+        mkdir -p dist/release-assets
+        tar -czf "dist/release-assets/TechDocForge-v$version-linux-x64.tar.gz" -C dist TechDocForge
+    - name: Write SHA-256 checksum
+      id: checksum
+      shell: bash
+      working-directory: dist/release-assets
+      run: |
+        version="$(tr -d '\r\n' < "$GITHUB_WORKSPACE/VERSION")"
+        case "$RUNNER_OS" in
+          Windows) archive="TechDocForge-v$version-windows-x64.zip" ;;
+          Linux) archive="TechDocForge-v$version-linux-x64.tar.gz" ;;
+          *) echo "Unsupported runner OS: $RUNNER_OS" >&2; exit 1 ;;
+        esac
+        if [[ ! -s "$archive" ]]; then
+          echo "Missing or empty archive: $archive" >&2
+          exit 1
+        fi
+        sha256sum --binary "$archive" > "$archive.sha256"
+        sha256sum --check --strict "$archive.sha256"
+        printf 'archive=dist/release-assets/%s\nchecksum=dist/release-assets/%s.sha256\n' \
+          "$archive" "$archive" >> "$GITHUB_OUTPUT"
